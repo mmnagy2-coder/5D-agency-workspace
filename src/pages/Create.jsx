@@ -1,30 +1,40 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { agency, people } from '../config/agency.js'
+import { brand } from '../config/brand.js'
 import { channels } from '../config/channels.js'
 import { Composer, refsIn } from '../components/Composer.jsx'
 import { BrandCheckPanel, downloadAll, FormatWall, ScheduleList } from '../components/PostEditor.jsx'
-import { go, Icon } from '../components/ui.jsx'
+import { conceptTitle, go, Icon, personName, thumbDialect } from '../components/ui.jsx'
 import { Creative } from '../creative/Creative.jsx'
+import { hasArabic, isAr, isolateTags, L, t, tg } from '../i18n/index.js'
 import { writeConcepts } from '../lib/engines.js'
 import { applyWordSwaps, brandCheck, buildFormats, sleep, uid } from '../lib/simulate.js'
 import { ROLE_INFO, useStore } from '../store/store.jsx'
+import { people } from '../config/agency.js'
 
-const STEPS = [
-  ['brief', 'Brief'],
-  ['concepts', 'Concepts'],
-  ['formats', 'Every channel'],
-  ['check', 'Check and schedule'],
-]
+const STEPS = ['brief', 'concepts', 'formats', 'check']
 
+// A short working title from the brief, in the language it was written in.
+// @Tags read as the element's name in that language.
 const titleFrom = (prompt) => {
-  const clean = prompt.replace(/@(\w+)/g, (_, t) => t.replace(/([a-z])([A-Z])/g, '$1 $2')).replace(/\s+/g, ' ').trim()
-  const short = clean.split(/[.,:;]/)[0]
-  return short.length > 46 ? `${short.slice(0, 44).trim()}…` : short.charAt(0).toUpperCase() + short.slice(1)
+  const ar = hasArabic(prompt.replace(/@\w+/g, ''))
+  const clean = prompt
+    .replace(/@(\w+)/g, (_, tag) => {
+      const el = brand.elements.find((e) => e.tag.toLowerCase() === tag.toLowerCase())
+      if (el) return ar ? el.nameAr : el.name
+      return tag.replace(/([a-z])([A-Z])/g, '$1 $2')
+    })
+    .replace(/\s+/g, ' ')
+    .replace(/لـ /g, 'لـ')
+    .trim()
+  const short = clean.split(/[.,:;،؛]/)[0].trim()
+  if (short.length > 46) return `${short.slice(0, 44).trim()}…`
+  return ar ? short : short.charAt(0).toUpperCase() + short.slice(1)
 }
 
 export default function Create() {
   const { state, dispatch, toast } = useStore()
   const me = ROLE_INFO[state.role].person
+  const gender = people[me]?.gender
   const isApprover = state.role === 'approver'
   const [step, setStep] = useState('brief')
   const [prompt, setPrompt] = useState(state.composer?.prompt || '')
@@ -51,18 +61,18 @@ export default function Create() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const template = state.templates.find((t) => t.id === templateId)
+  const template = state.templates.find((x) => x.id === templateId)
   const refs = refsIn(prompt)
 
   const PROGRESS = [
-    'Reading the brief',
-    refs.length ? `Bringing in ${refs.map((r) => '@' + r.tag).join(', ')} from the brand kit` : 'Matching the brief to the brand kit',
-    'Writing copy in English, Egyptian, Gulf and Modern Standard Arabic',
-    template ? `Composing four concepts on the ${template.name} template` : 'Composing four concepts on Qamari templates',
+    t('create.p.read'),
+    refs.length ? t('create.p.refs', { refs: refs.map((r) => '@' + r.tag).join(isAr() ? '، ' : ', ') }) : t('create.p.match'),
+    t('create.p.copy'),
+    template ? t('create.p.template', { name: L(template, 'name') }) : t('create.p.compose'),
   ]
 
   async function generate(p = prompt, tplId = templateId, nextRound = 0) {
-    const tpl = state.templates.find((t) => t.id === tplId)
+    const tpl = state.templates.find((x) => x.id === tplId)
     setStep('generating')
     setProgress(0)
     const out = await writeConcepts(p, [], { template: tpl, round: nextRound })
@@ -83,18 +93,24 @@ export default function Create() {
 
   const chosen = concepts.find((c) => c.id === selected)
 
+  // The headline you edit is the one in the interface language. The other
+  // version is shown underneath for reference.
+  const editDialect = isAr() ? 'egyptian' : 'english'
+  const refDialect = isAr() ? 'english' : 'egyptian'
   const editChosen = (field, value) => {
-    setConcepts((cs) => cs.map((c) => (c.id === selected ? { ...c, copy: { ...c.copy, english: { ...c.copy.english, [field]: value } } } : c)))
+    setConcepts((cs) => cs.map((c) => (c.id === selected ? { ...c, copy: { ...c.copy, [editDialect]: { ...c.copy[editDialect], [field]: value } } } : c)))
   }
 
   const formatAll = () => {
+    const title = titleFrom(prompt)
     setPost({
       id: uid('post'),
-      title: titleFrom(prompt),
+      title,
+      titleAr: hasArabic(title) ? title : undefined,
       prompt,
       analysis,
       concept: chosen,
-      formats: buildFormats(chosen, enabled),
+      formats: buildFormats(chosen, enabled, { arabicFirst: analysis?.arabic }),
       offerCode: '',
       resolved: {},
     })
@@ -110,7 +126,7 @@ export default function Create() {
     if (fix.kind === 'swap-words') setPost(applyWordSwaps(post, fix.words))
     if (fix.kind === 'move-to-iftar') setPost({ ...post, resolved: { ...post.resolved, daytime: true } })
     if (fix.kind === 'offer-code') setPost({ ...post, offerCode: value })
-    toast('Fixed. The brand check has run again.')
+    toast(t('toast.fixed'))
   }
 
   const submit = () => {
@@ -122,19 +138,22 @@ export default function Create() {
     ]
     const formats = post.formats.map((f) => ({ ...f, enabled: f.enabled && !offline.includes(f) }))
     const saved = { ...post, formats, status, createdBy: me, approvedBy: isApprover ? me : null, history, createdAt: now }
+    const vars = { who: me, title: saved.title, titleAr: saved.titleAr }
     dispatch({ type: 'post/add', post: saved })
-    if (!isApprover) dispatch({ type: 'notify', note: { to: 'client', text: `${people[me].name.split(' ')[0]} sent ${saved.title} for approval.`, link: `review?${saved.id}` } })
-    if (state.paidHandover && isApprover) dispatch({ type: 'notify', note: { to: 'agency', text: `${saved.title} is approved. Assets are ready for the paid media team.`, link: 'calendar' } })
-    toast(isApprover ? `Approved and scheduled ${formats.filter((f) => f.enabled).length} formats` : 'Sent to Layla for approval')
+    if (!isApprover) dispatch({ type: 'notify', note: { to: 'client', key: 'n.sent', vars, link: `review?${saved.id}` } })
+    if (state.paidHandover && isApprover) dispatch({ type: 'notify', note: { to: 'agency', key: 'n.paidReady', vars: { title: saved.title, titleAr: saved.titleAr }, link: 'calendar' } })
+    toast(isApprover ? t('create.toast.scheduled', { n: formats.filter((f) => f.enabled).length }) : t('create.toast.sent', { name: personName('layla') }))
     setSavedId(saved.id)
     setStep('done')
   }
 
   const sendToAgency = () => {
+    const title = titleFrom(prompt)
     const ticket = {
       id: uid('tk'),
       kind: 'request',
-      title: titleFrom(prompt),
+      title,
+      titleAr: hasArabic(title) ? title : undefined,
       detail: prompt,
       status: 'new',
       from: me,
@@ -142,17 +161,18 @@ export default function Create() {
       messages: [{ by: me, at: new Date().toISOString(), text: prompt }],
     }
     dispatch({ type: 'ticket/add', ticket })
-    dispatch({ type: 'notify', note: { to: 'agency', text: `New request from ${people[me].name.split(' ')[0]}: ${ticket.title}`, link: 'desk' } })
+    dispatch({ type: 'notify', note: { to: 'agency', key: 'n.newRequest', vars: { who: me, title: ticket.title, titleAr: ticket.titleAr }, link: 'desk' } })
     setTicketId(ticket.id)
-    toast(`Sent to ${agency.name}`, 'agency')
+    toast(t('create.toast.agency'), 'agency')
   }
 
-  const stepIndex = STEPS.findIndex(([id]) => id === (step === 'generating' || step === 'agency' ? 'brief' : step === 'done' ? 'check' : step))
+  const stepIndex = STEPS.indexOf(step === 'generating' || step === 'agency' ? 'brief' : step === 'done' ? 'check' : step)
+  const postTitle = post ? L(post, 'title') : ''
 
   return (
     <div className="page">
-      <nav className="steps" aria-label="Progress">
-        {STEPS.map(([id, label], i) => (
+      <nav className="steps" aria-label={t('create.progress')}>
+        {STEPS.map((id, i) => (
           <span key={id} style={{ display: 'contents' }}>
             {i > 0 && <span className="sep">/</span>}
             <button
@@ -161,7 +181,7 @@ export default function Create() {
               onClick={() => setStep(id)}
             >
               <b>{i + 1}</b>
-              {label}
+              {t(`create.step.${id}`)}
             </button>
           </span>
         ))}
@@ -170,13 +190,15 @@ export default function Create() {
       {step === 'brief' && (
         <div className="split-main">
           <div className="stack">
-            <h1>Tell the studio what you need</h1>
-            <p className="lede">Write it the way you would brief a colleague. Bring in characters, products and styles with @ so they look exactly as they do in the brand kit.</p>
-            <Composer value={prompt} onChange={setPrompt} onSubmit={() => generate()} templates={state.templates} templateId={templateId} onTemplate={setTemplateId} submitLabel="Make concepts" autoFocus />
+            <h1>{t('create.brief.title')}</h1>
+            <p className="lede">{t('create.brief.lede')}</p>
+            <Composer value={prompt} onChange={setPrompt} onSubmit={() => generate()} templates={state.templates} templateId={templateId} onTemplate={setTemplateId} submitLabel={t('create.make')} autoFocus />
           </div>
           <aside className="panel">
-            <h3>Channels for this post</h3>
-            <p className="small muted" style={{ marginTop: 0 }}>Every concept is formatted for the channels you keep on.</p>
+            <h3>{t('create.channels.title')}</h3>
+            <p className="small muted" style={{ marginTop: 0 }}>
+              {t('create.channels.sub')}
+            </p>
             <div className="stack" style={{ gap: 6 }}>
               {channels.map((c) => {
                 const net = state.networks.find((n) => n.id === c.network)
@@ -184,9 +206,9 @@ export default function Create() {
                   <label key={c.id} className="row small" style={{ justifyContent: 'space-between', flexWrap: 'nowrap' }}>
                     <span className="row" style={{ gap: 8 }}>
                       <input type="checkbox" checked={enabled.includes(c.id)} onChange={(e) => setEnabled(e.target.checked ? [...enabled, c.id] : enabled.filter((x) => x !== c.id))} />
-                      {c.name}
+                      {L(c, 'name')}
                     </span>
-                    <span className="tiny muted">{net?.connected ? c.ratio : 'not connected'}</span>
+                    <span className="tiny muted">{net?.connected ? <span dir="ltr">{c.ratio}</span> : t('channel.notConnected')}</span>
                   </label>
                 )
               })}
@@ -204,7 +226,7 @@ export default function Create() {
           </div>
           <aside className="panel thinking" aria-live="polite">
             {PROGRESS.map((line, i) => (
-              <div key={line} className={`line ${i < progress ? 'done' : i === progress ? 'now' : ''}`}>
+              <div key={i} className={`line ${i < progress ? 'done' : i === progress ? 'now' : ''}`}>
                 {i < progress ? <span style={{ color: 'var(--ok)' }}>✓</span> : i === progress ? <span className="spinner" /> : <span style={{ width: 16 }} />}
                 {line}
               </div>
@@ -216,40 +238,42 @@ export default function Create() {
       {step === 'agency' && analysis && (
         <div className="split-main">
           <div className="panel" style={{ borderColor: 'var(--agency)', background: 'var(--agency-soft)' }}>
-            <span className="tag agency">Handled by {agency.name}</span>
-            <h1 style={{ marginTop: 10 }}>This one needs your agency</h1>
-            {analysis.agency.map((r) => (
-              <p key={r} style={{ margin: '4px 0' }}>
-                {r}
+            <span className="tag agency">{t('create.agency.tag')}</span>
+            <h1 style={{ marginTop: 10 }}>{t('create.agency.title')}</h1>
+            {analysis.agency.map((key) => (
+              <p key={key} style={{ margin: '4px 0' }}>
+                {t(`agency.reason.${key}`)}
               </p>
             ))}
-            <p className="small muted">Your brief goes to {agency.name} as it is. They reply here, and what they make lands in your library or templates.</p>
-            <blockquote className="paper" style={{ margin: '14px 0', padding: 14 }}>
-              {prompt}
+            <p className="small muted">{t('create.agency.how')}</p>
+            <blockquote className="paper" style={{ margin: '14px 0', padding: 14 }} dir="auto">
+              {isolateTags(prompt)}
             </blockquote>
             {ticketId ? (
               <div className="row">
-                <span className="tag ok">Sent to {agency.name}. {agency.responseTime}.</span>
+                <span className="tag ok">
+                  {t('create.agency.sent')} {t('agency.responseTime')}
+                </span>
                 <button className="btn" onClick={() => go('help')}>
-                  Follow it in Ask {agency.name}
+                  {t('create.agency.follow')}
                 </button>
               </div>
             ) : (
               <div className="row">
                 <button className="btn agency lg" onClick={sendToAgency}>
-                  <Icon name="send" size={16} /> Send to {agency.name}
+                  <Icon name="send" size={16} /> {t('create.agency.send')}
                 </button>
                 <button className="btn" onClick={() => setStep('brief')}>
-                  Edit the brief
+                  {t('create.agency.edit')}
                 </button>
               </div>
             )}
           </div>
           <aside className="panel small">
-            <h3>What the studio makes on its own</h3>
-            <p className="muted">Posts, stories, short social video frames, offers and greetings for every connected channel, in English and three Arabic dialects, from the brand kit and templates.</p>
-            <h3>What goes to {agency.name}</h3>
-            <p className="muted">Shoots, TV and long-form film, new characters, identity changes, print and outdoor, new channels and anything that needs a new template.</p>
+            <h3>{t('scope.studio.title')}</h3>
+            <p className="muted">{t('scope.studio.body')}</p>
+            <h3>{t('scope.agency.title')}</h3>
+            <p className="muted">{t('scope.agency.body')}</p>
           </aside>
         </div>
       )}
@@ -259,24 +283,24 @@ export default function Create() {
           <div>
             <div className="row between" style={{ marginBottom: 12 }}>
               <div>
-                <h1 style={{ fontSize: 28 }}>Four concepts</h1>
+                <h1 style={{ fontSize: 28 }}>{t('create.concepts.title')}</h1>
                 <p className="muted small" style={{ margin: 0 }}>
-                  Pick one to format for every channel. All four already follow the brand kit.
+                  {t('create.concepts.sub')}
                 </p>
               </div>
               <button className="btn" onClick={() => generate(prompt, templateId, round + 1)}>
-                Try four more
+                {t('create.concepts.more')}
               </button>
             </div>
             <div className="grid cols-2" style={{ maxWidth: 820 }}>
               {concepts.map((c) => (
                 <div key={c.id} className={`creative pick ${c.id === selected ? 'selected' : ''}`} onClick={() => setSelected(c.id)} role="button" tabIndex={0} aria-pressed={c.id === selected} onKeyDown={(e) => e.key === 'Enter' && setSelected(c.id)}>
                   <div className="art">
-                    <Creative w={1080} h={1350} concept={c} dialect="english" />
+                    <Creative w={1080} h={1350} concept={c} dialect={thumbDialect()} />
                   </div>
                   <div className="meta">
-                    <b>{c.title}</b>
-                    <span className="small muted">{c.copy.english.headline}</span>
+                    <b>{conceptTitle(c)}</b>
+                    <span className="small muted">{c.copy[editDialect].headline}</span>
                   </div>
                 </div>
               ))}
@@ -284,29 +308,32 @@ export default function Create() {
           </div>
           {chosen && (
             <aside className="panel stack" style={{ position: 'sticky', top: 80 }}>
-              <h3 style={{ margin: 0 }}>{chosen.title}</h3>
+              <h3 style={{ margin: 0 }}>{conceptTitle(chosen)}</h3>
               <label className="field">
-                Headline
-                <input type="text" value={chosen.copy.english.headline} onChange={(e) => editChosen('headline', e.target.value)} />
+                {t('create.concepts.headline')}
+                <input type="text" value={chosen.copy[editDialect].headline} dir={editDialect === 'english' ? 'ltr' : 'rtl'} onChange={(e) => editChosen('headline', e.target.value)} />
               </label>
               <label className="field">
-                Line under it
-                <textarea value={chosen.copy.english.sub} onChange={(e) => editChosen('sub', e.target.value)} />
+                {t('create.concepts.subline')}
+                <textarea value={chosen.copy[editDialect].sub} dir={editDialect === 'english' ? 'ltr' : 'rtl'} onChange={(e) => editChosen('sub', e.target.value)} />
               </label>
               <p className="tiny muted" style={{ margin: 0 }}>
-                Arabic versions keep the approved dialect copy. Ask {agency.name} if the Arabic needs a new line.
+                {t(isAr() ? 'create.concepts.noteAr' : 'create.concepts.note')}
               </p>
-              <div className="paper" style={{ padding: 10, direction: 'rtl', fontFamily: 'var(--ar)' }}>
-                <div className="tiny muted" style={{ direction: 'ltr' }}>
-                  Egyptian Arabic
+              <div className="paper" style={{ padding: 10 }} dir={refDialect === 'english' ? 'ltr' : 'rtl'} lang={refDialect === 'english' ? 'en' : 'ar'}>
+                <div className="tiny muted" dir={isAr() ? 'rtl' : 'ltr'}>
+                  {L(
+                    brand.dialects.find((d) => d.id === refDialect),
+                    'name',
+                  )}
                 </div>
-                <b>{chosen.copy.egyptian.headline}</b>
-                <div className="small">{chosen.copy.egyptian.sub}</div>
+                <b>{chosen.copy[refDialect].headline}</b>
+                <div className="small">{chosen.copy[refDialect].sub}</div>
               </div>
               <button className="btn gold lg" onClick={formatAll}>
-                Format for every channel
+                {t('create.concepts.format')}
               </button>
-              <span className="tiny muted">{enabled.length} channels selected</span>
+              <span className="tiny muted">{t('create.concepts.selected', { n: enabled.length })}</span>
             </aside>
           )}
         </div>
@@ -316,20 +343,22 @@ export default function Create() {
         <div>
           <div className="row between" style={{ marginBottom: 16 }}>
             <div>
-              <h1 style={{ fontSize: 28 }}>{post.title}</h1>
+              <h1 style={{ fontSize: 28 }} dir="auto">
+                {postTitle}
+              </h1>
               <p className="muted small" style={{ margin: 0 }}>
-                {live.length} formats from one concept. Change the language per channel, edit captions, or switch a format off.
+                {t('create.formats.sub', { n: live.length })}
               </p>
             </div>
             <div className="row">
               <label className="row small" style={{ gap: 6 }}>
-                <input type="checkbox" checked={showSafe} onChange={(e) => setShowSafe(e.target.checked)} /> Show safe zones
+                <input type="checkbox" checked={showSafe} onChange={(e) => setShowSafe(e.target.checked)} /> {t('create.formats.safe')}
               </label>
               <button className="btn" onClick={() => downloadAll(wallRef.current, post, toast)}>
-                <Icon name="download" size={16} /> Download all
+                <Icon name="download" size={16} /> {t('create.formats.download')}
               </button>
               <button className="btn primary" onClick={() => setStep('check')}>
-                Check and schedule
+                {t('create.step.check')}
               </button>
             </div>
           </div>
@@ -342,31 +371,25 @@ export default function Create() {
       {step === 'check' && post && (
         <div className="split-main">
           <div>
-            <h1 style={{ fontSize: 28 }}>Check the dates and times</h1>
-            <p className="lede">Suggested times come from when each channel performs best for Qamari. Change any of them before you {isApprover ? 'approve' : 'send it for approval'}.</p>
+            <h1 style={{ fontSize: 28 }}>{t('create.check.title')}</h1>
+            <p className="lede">{t(isApprover ? 'create.check.ledeApprove' : 'create.check.ledeSend')}</p>
             <div className="panel" style={{ padding: '6px 16px' }}>
               <ScheduleList post={post} onChange={setPost} networks={state.networks} />
             </div>
             {offline.length > 0 && (
               <p className="small" style={{ color: 'var(--warn)' }}>
-                {offline.length} {offline.length > 1 ? 'formats are' : 'format is'} for channels that are not connected and will be left out.
+                {t(offline.length > 1 ? 'create.check.offline' : 'create.check.offlineOne', { n: offline.length })}
               </p>
             )}
           </div>
           <aside className="panel stack" style={{ position: 'sticky', top: 80 }}>
             <BrandCheckPanel results={results} onFix={onFix} />
-            {isApprover ? (
-              <button className="btn primary lg" disabled={blocking > 0} onClick={submit}>
-                Approve and schedule
-              </button>
-            ) : (
-              <button className="btn primary lg" disabled={blocking > 0} onClick={submit}>
-                Send to Layla for approval
-              </button>
-            )}
-            {blocking > 0 && <span className="tiny muted">Fix the items above first. Brand rules are enforced, not optional.</span>}
+            <button className="btn primary lg" disabled={blocking > 0} onClick={submit}>
+              {isApprover ? tg('action.approve', gender) : tg('action.sendLayla', gender, { name: personName('layla') })}
+            </button>
+            {blocking > 0 && <span className="tiny muted">{t('create.check.blocked')}</span>}
             <button className="btn ghost" onClick={() => setStep('formats')}>
-              Back to formats
+              {t('create.check.back')}
             </button>
           </aside>
         </div>
@@ -374,12 +397,14 @@ export default function Create() {
 
       {step === 'done' && post && (
         <div className="panel" style={{ maxWidth: 720 }}>
-          <span className={`tag ${isApprover ? 'ok' : 'warn'}`}>{isApprover ? 'Scheduled' : 'Waiting for approval'}</span>
-          <h1 style={{ marginTop: 10 }}>{isApprover ? `${post.title} is scheduled` : `${post.title} is with Layla`}</h1>
+          <span className={`tag ${isApprover ? 'ok' : 'warn'}`}>{t(isApprover ? 'status.scheduled' : 'status.pending')}</span>
+          <h1 style={{ marginTop: 10 }} dir="auto">
+            {isApprover ? t('create.done.scheduled', { title: postTitle }) : t('create.done.withLayla', { title: postTitle, name: personName('layla') })}
+          </h1>
           <p className="muted">
             {isApprover
-              ? `${live.length - offline.length} formats will go out at the times you set.${state.paidHandover ? ` ${agency.name}'s media team has the approved files for paid placements.` : ''}`
-              : 'She gets a notification and can approve it, change the times or send it back with a note.'}
+              ? `${t('create.done.goOut', { n: live.length - offline.length })}${state.paidHandover ? ` ${t('create.done.paid')}` : ''}`
+              : t('create.done.layla')}
           </p>
           <div className="row">
             <button
@@ -391,10 +416,10 @@ export default function Create() {
                 setStep('brief')
               }}
             >
-              Make something else
+              {t('create.done.again')}
             </button>
             <button className="btn" onClick={() => go(isApprover ? 'calendar' : `review?${savedId}`)}>
-              {isApprover ? 'Open the calendar' : 'Open it in review'}
+              {t(isApprover ? 'home.openCalendar' : 'create.done.openReview')}
             </button>
           </div>
         </div>

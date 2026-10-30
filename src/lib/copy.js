@@ -117,4 +117,11 @@ export const SAFE_SWAPS = {
   cheap: 'great value',
   'sugar-free': 'naturally sweet',
   'sugar free': 'naturally sweet',
+  صحي: 'طبيعي',
+  صحية: 'طبيعية',
+  علاج: 'دفا',
+  'خالي من السكر': 'حلو بطبيعته',
+  'من غير سكر': 'حلو بطبيعته',
+  رخيص: 'بسعر حلو',
+  'من غير إحساس بالذنب': 'معمول عشان يتشارك',
 }

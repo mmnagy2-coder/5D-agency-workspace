@@ -3,6 +3,7 @@ import { people } from '../config/agency.js'
 import { channelById } from '../config/channels.js'
 import { Creative } from '../creative/Creative.jsx'
 import { C, Motif, StarPattern } from '../creative/motifs.jsx'
+import { getLang, L, locale, t, tg } from '../i18n/index.js'
 import { useStore } from '../store/store.jsx'
 
 const paths = {
@@ -35,27 +36,47 @@ export function Icon({ name, size = 18, stroke = 1.7 }) {
 
 export function Avatar({ id }) {
   const p = people[id]
-  if (!p) return <span className="avatar system">QS</span>
+  if (!p) return <span className="avatar system">{getLang() === 'ar' ? 'ق' : 'QS'}</span>
   return (
-    <span className={`avatar ${p.side === 'agency' ? 'agency' : ''}`} title={`${p.name}, ${p.role}`}>
-      {p.initials}
+    <span className={`avatar ${p.side === 'agency' ? 'agency' : ''}`} title={`${L(p, 'name')}, ${L(p, 'role')}`}>
+      {L(p, 'initials')}
     </span>
   )
 }
 
-export const personName = (id) => (id === 'system' ? 'Qamari Studio' : people[id]?.name.split(' ')[0] || 'Someone')
+export const personName = (id) => (id === 'system' ? t('studio.name') : L(people[id], 'name').split(' ')[0] || t('someone'))
+export const personGender = (id) => people[id]?.gender || 'm'
 
-const STATUS = {
-  draft: ['Draft', ''],
-  pending: ['Waiting for approval', 'warn'],
-  changes: ['Changes requested', 'bad'],
-  scheduled: ['Scheduled', 'ok'],
-  published: ['Published', 'brand'],
-}
+const STATUS_CLASS = { draft: '', pending: 'warn', changes: 'bad', scheduled: 'ok', published: 'brand' }
 export function StatusTag({ status }) {
-  const [label, cls] = STATUS[status] || [status, '']
-  return <span className={`tag ${cls}`}>{label}</span>
+  return <span className={`tag ${STATUS_CLASS[status] ?? ''}`}>{t(`status.${status}`)}</span>
 }
+
+// History entries are stored as fixed English actions and read in the
+// interface language, with Arabic verbs agreeing with whoever acted.
+const ACTION_KEYS = {
+  Created: 'act.created',
+  'Sent for approval': 'act.sent',
+  'Approved and scheduled': 'act.approved',
+  'Asked for changes': 'act.changes',
+  Edited: 'act.edited',
+  'Changed the schedule': 'act.schedule',
+  'Took off the schedule': 'act.unscheduled',
+  Published: 'act.published',
+}
+export const actionText = (h) => tg(ACTION_KEYS[h.action] || h.action, personGender(h.by))
+
+// Notifications are stored as keys with their values. Title-like values
+// carry an Arabic sibling (titleAr), and who is a person id.
+export function notificationText(n) {
+  if (!n.key) return n.text || ''
+  const v = { ...(n.vars || {}) }
+  for (const k of Object.keys(v)) if (getLang() === 'ar' && v[`${k}Ar`]) v[k] = v[`${k}Ar`]
+  if (v.who) v.name = personName(v.who)
+  return tg(n.key, v.who ? personGender(v.who) : 'm', v)
+}
+
+export const conceptTitle = (c) => (c.titleKey ? t(`concept.${c.titleKey}`) : c.title || '')
 
 export function Modal({ children, onClose, wide, label }) {
   useEffect(() => {
@@ -67,7 +88,7 @@ export function Modal({ children, onClose, wide, label }) {
     <div className="scrim" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className={`modal ${wide ? 'wide' : ''}`} role="dialog" aria-modal="true" aria-label={label}>
         <div className="row end" style={{ marginBottom: -8 }}>
-          <button className="btn ghost sm" onClick={onClose} aria-label="Close">
+          <button className="btn ghost sm" onClick={onClose} aria-label={t('close')}>
             <Icon name="close" size={16} />
           </button>
         </div>
@@ -96,7 +117,7 @@ export function AssetArt({ asset, w = 600, h = 600 }) {
   const bg = { night: C.night, date: C.date, milk: C.milk }[asset.palette] || C.night
   const id = `a${asset.id.replace(/[^a-z0-9]/gi, '')}`
   return (
-    <svg viewBox={`0 0 ${w} ${h}`} role="img" aria-label={asset.name}>
+    <svg viewBox={`0 0 ${w} ${h}`} role="img" aria-label={L(asset, 'name')}>
       <defs>
         <StarPattern id={id} colour={asset.palette === 'milk' ? C.date : C.saffron} size={w * 0.12} opacity={0.08} />
       </defs>
@@ -134,18 +155,21 @@ export function AssetArt({ asset, w = 600, h = 600 }) {
   )
 }
 
+// Thumbnails follow the interface: Egyptian artwork in Arabic, English otherwise.
+export const thumbDialect = () => (getLang() === 'ar' ? 'egyptian' : 'english')
+
 export function PostThumb({ post, size = 46 }) {
   const ch = channelById('ig-feed')
   return (
     <span className="thumb" style={{ width: size }}>
-      <Creative w={ch.w} h={ch.h} concept={post.concept} dialect="english" />
+      <Creative w={ch.w} h={ch.h} concept={post.concept} dialect={thumbDialect()} />
     </span>
   )
 }
 
 export function fmtDate(iso, opts = { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) {
   try {
-    return new Date(iso).toLocaleString('en-GB', opts)
+    return new Date(iso).toLocaleString(locale(), opts)
   } catch {
     return iso
   }
@@ -153,10 +177,10 @@ export function fmtDate(iso, opts = { day: 'numeric', month: 'short', hour: '2-d
 
 export function relTime(iso) {
   const d = (Date.now() - new Date(iso).getTime()) / 1000
-  if (d < 60) return 'just now'
-  if (d < 3600) return `${Math.round(d / 60)} min ago`
-  if (d < 86400) return `${Math.round(d / 3600)} h ago`
-  return `${Math.round(d / 86400)} d ago`
+  if (d < 60) return t('time.now')
+  if (d < 3600) return t('time.min', { n: Math.round(d / 60) })
+  if (d < 86400) return t('time.hour', { n: Math.round(d / 3600) })
+  return t('time.day', { n: Math.round(d / 86400) })
 }
 
 // Routes are plain hash names (#review, #review-post-abc12) so they survive

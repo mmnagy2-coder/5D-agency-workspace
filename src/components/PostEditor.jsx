@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import { brand } from '../config/brand.js'
 import { channelById } from '../config/channels.js'
 import { Creative } from '../creative/Creative.jsx'
+import { isAr, joinList, L, ltr, t } from '../i18n/index.js'
 import { saveBlob, slug, svgToPngBlob } from '../lib/exporter.js'
 import { captionFor } from '../lib/simulate.js'
 import { useStore } from '../store/store.jsx'
@@ -22,8 +23,8 @@ export function FormatWall({ post, onChange, showSafe, editable = true, animate 
     if (!svg) return
     const blob = await svgToPngBlob(svg, ch.w, ch.h)
     const res = await saveBlob(blob, `${slug(post.title || 'qamari')}-${ch.id}-${ch.w}x${ch.h}.png`)
-    if (res === 'saved') toast(`Downloaded ${ch.name} at ${ch.w} by ${ch.h}`)
-    if (res === 'failed') toast('Downloads are not available in this view', 'bad')
+    if (res === 'saved') toast(t('toast.downloadedOne', { name: L(ch, 'name'), w: ch.w, h: ch.h }))
+    if (res === 'failed') toast(t('toast.noDownloads'), 'bad')
   }
   return (
     <div className="wall" ref={wall}>
@@ -33,35 +34,35 @@ export function FormatWall({ post, onChange, showSafe, editable = true, animate 
         return (
           <article key={f.channelId} className={`format ${f.enabled ? '' : 'off'}`} style={{ animationDelay: animate ? `${i * 80}ms` : '0ms', animationName: animate ? undefined : 'none' }}>
             <div className="art" data-channel={f.channelId}>
-              <Creative w={ch.w} h={ch.h} concept={post.concept} dialect={f.dialect} showSafe={showSafe} title={`${ch.name} format`} />
+              <Creative w={ch.w} h={ch.h} concept={post.concept} dialect={f.dialect} showSafe={showSafe} title={t('format.title', { name: L(ch, 'name') })} />
             </div>
             <div className="body">
               <div className="row between" style={{ flexWrap: 'nowrap' }}>
                 <label className="row" style={{ gap: 8, fontWeight: 600 }}>
                   <input type="checkbox" checked={f.enabled} disabled={!editable} onChange={(e) => set(i, { enabled: e.target.checked })} />
-                  {ch.name}
+                  {L(ch, 'name')}
                 </label>
-                <span className="tiny muted">
+                <span className="tiny muted" dir="ltr">
                   {ch.w}×{ch.h}
                 </span>
               </div>
-              <select value={f.dialect} disabled={!editable} onChange={(e) => set(i, { dialect: e.target.value, caption: captionFor(post.concept, ch, e.target.value) })} aria-label={`${ch.name} language`}>
+              <select value={f.dialect} disabled={!editable} onChange={(e) => set(i, { dialect: e.target.value, caption: captionFor(post.concept, ch, e.target.value) })} aria-label={t('format.language', { name: L(ch, 'name') })}>
                 {brand.dialects.map((d) => (
                   <option key={d.id} value={d.id}>
-                    {d.name}
+                    {L(d, 'name')}
                   </option>
                 ))}
               </select>
               {ch.captionLimit > 0 ? (
                 <>
-                  <textarea value={f.caption} readOnly={!editable} dir={f.dialect === 'english' ? 'ltr' : 'rtl'} onChange={(e) => set(i, { caption: e.target.value })} aria-label={`${ch.name} caption`} />
+                  <textarea value={f.caption} readOnly={!editable} dir={f.dialect === 'english' ? 'ltr' : 'rtl'} onChange={(e) => set(i, { caption: e.target.value })} aria-label={t('format.caption', { name: L(ch, 'name') })} />
                   <div className={`count ${over ? 'over' : ''}`}>
-                    {f.caption.length} of {ch.captionLimit}
+                    {t('format.count', { n: f.caption.length, max: ch.captionLimit })}
                   </div>
                 </>
               ) : (
                 <p className="tiny muted" style={{ margin: 0 }}>
-                  Stories carry no caption. The words are in the artwork.
+                  {t('format.noCaption')}
                 </p>
               )}
               <button className="btn sm ghost" onClick={() => download(f)} style={{ alignSelf: 'flex-start' }}>
@@ -88,7 +89,7 @@ export async function downloadAll(container, post, toast) {
     saved++
     await new Promise((r) => setTimeout(r, 250))
   }
-  if (saved) toast(`Downloaded ${saved} of ${live.length} formats`)
+  if (saved) toast(t('toast.downloaded', { n: saved, total: live.length }))
 }
 
 export function ScheduleList({ post, onChange, networks, editable = true }) {
@@ -105,19 +106,35 @@ export function ScheduleList({ post, onChange, networks, editable = true }) {
               <Creative w={ch.w} h={ch.h} concept={post.concept} dialect={f.dialect} />
             </span>
             <div style={{ flex: '1 1 160px', minWidth: 0 }}>
-              <div style={{ fontWeight: 600 }}>{ch.name}</div>
+              <div style={{ fontWeight: 600 }}>{L(ch, 'name')}</div>
               <div className="tiny muted">
-                {brand.dialects.find((d) => d.id === f.dialect)?.name}
-                {net?.connected ? `, posts to ${net.handle}` : ''}
+                {L(
+                  brand.dialects.find((d) => d.id === f.dialect),
+                  'name',
+                )}
+                {net?.connected ? t('schedule.postsTo', { handle: ltr(net.handle) }) : ''}
               </div>
-              {!net?.connected && <span className="tag warn">{ch.network} not connected. Connect it in Channels.</span>}
+              {!net?.connected && <span className="tag warn">{t('schedule.offline', { network: L(net, 'name') || ch.network })}</span>}
             </div>
-            <input type="datetime-local" value={f.scheduledAt} disabled={!editable} onChange={(e) => set(i, { scheduledAt: e.target.value })} style={{ width: 210 }} aria-label={`${ch.name} date and time`} />
+            <input type="datetime-local" value={f.scheduledAt} disabled={!editable} onChange={(e) => set(i, { scheduledAt: e.target.value })} style={{ width: 210 }} aria-label={t('schedule.when', { name: L(ch, 'name') })} dir="ltr" />
           </div>
         )
       })}
     </div>
   )
+}
+
+// Brand check notes are stored as keys with values, so they read in either language.
+export function checkNote(r) {
+  const v = { ...(r.vars || {}) }
+  if (v.colourKey) v.colour = t(v.colourKey)
+  if (v.code) v.code = ltr(v.code)
+  if (Array.isArray(v.words)) {
+    v.count = v.words.length
+    v.words = joinList(v.words.map((w) => (isAr() ? `«${w}»` : `"${w}"`)))
+  }
+  const key = r.noteKey === 'check.claimsFail' && v.count > 1 ? 'check.claimsFailMany' : r.noteKey
+  return t(key, v)
 }
 
 export function BrandCheckPanel({ results, onFix, canFix = true }) {
@@ -127,8 +144,8 @@ export function BrandCheckPanel({ results, onFix, canFix = true }) {
   return (
     <div>
       <div className="row between" style={{ marginBottom: 4 }}>
-        <h3 style={{ margin: 0 }}>Brand check</h3>
-        {fails ? <span className="tag bad">{fails} to fix before approval</span> : <span className="tag ok">Ready to approve</span>}
+        <h3 style={{ margin: 0 }}>{t('check.title')}</h3>
+        {fails ? <span className="tag bad">{t('check.toFix', { n: fails })}</span> : <span className="tag ok">{t('check.ready')}</span>}
       </div>
       {results.map((r) => (
         <div key={r.ruleId} className="check">
@@ -137,35 +154,35 @@ export function BrandCheckPanel({ results, onFix, canFix = true }) {
           </span>
           <div style={{ flex: 1 }}>
             <div className="small" style={{ fontWeight: 600 }}>
-              {r.category}
-              {r.status === 'warn' && <span className="tiny muted"> (not enforced)</span>}
+              {L(r.rule, 'category')}
+              {r.status === 'warn' && <span className="tiny muted"> {t('check.notEnforced')}</span>}
             </div>
-            <div className="small muted">{r.note}</div>
+            <div className="small muted">{checkNote(r)}</div>
             {r.fix && canFix && r.status !== 'pass' && (
               <div style={{ marginTop: 6 }}>
                 {r.fix.kind === 'swap-words' && (
                   <button className="btn sm" onClick={() => onFix(r.fix)}>
-                    Replace with approved wording
+                    {t('check.fixWords')}
                   </button>
                 )}
                 {r.fix.kind === 'move-to-iftar' && (
                   <button className="btn sm" onClick={() => onFix(r.fix)}>
-                    Move the scene to iftar
+                    {t('check.fixIftar')}
                   </button>
                 )}
                 {r.fix.kind === 'offer-code' && (
                   <div className="row" style={{ flexWrap: 'nowrap' }}>
-                    <input type="text" value={code} placeholder="e.g. RMD-TWO30" onChange={(e) => setCode(e.target.value.toUpperCase())} aria-label="Offer code" />
+                    <input type="text" value={code} placeholder={t('check.codePlaceholder')} dir="ltr" onChange={(e) => setCode(e.target.value.toUpperCase())} aria-label={t('check.code')} />
                     <button
                       className="btn sm"
                       onClick={() => {
                         if (TRADE_CODES.includes(code)) {
                           setErr('')
                           onFix(r.fix, code)
-                        } else setErr(`${code || 'That code'} is not in the trade calendar. Try ${TRADE_CODES[0]}.`)
+                        } else setErr(code ? t('check.codeBad', { code: ltr(code), example: ltr(TRADE_CODES[0]) }) : t('check.codeEmpty', { example: ltr(TRADE_CODES[0]) }))
                       }}
                     >
-                      Add code
+                      {t('check.addCode')}
                     </button>
                   </div>
                 )}

@@ -1,5 +1,6 @@
 // The simulated brain of the prototype. Every function here is a stand-in
-// for a live call described in src/lib/engines.js.
+// for a live call described in src/lib/engines.js. Briefs can be written in
+// English or Arabic, and both are understood.
 
 import { brand } from '../config/brand.js'
 import { channels } from '../config/channels.js'
@@ -8,54 +9,66 @@ import { HASHTAGS, SAFE_SWAPS, THEMES } from './copy.js'
 export const uid = (p = 'id') => `${p}-${Math.random().toString(36).slice(2, 8)}${Date.now().toString(36).slice(-3)}`
 export const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
+const ARABIC = /[؀-ۿ]/
+const westernDigits = (s) => String(s).replace(/[٠-٩]/g, (d) => '٠١٢٣٤٥٦٧٨٩'.indexOf(d)).replace(/٪/g, '%')
+
+// Requests the studio cannot make on its own. Each key has a reason in the
+// interface strings (agency.reason.<key>).
 const AGENCY_TRIGGERS = [
-  { re: /\b(tv|tvc|television|commercial)\b/, reason: 'A TV commercial needs a shoot and broadcast delivery specs, so 5D produces it.' },
-  { re: /\b(30|45|60|90)\s?-?(s|sec|secs|second|seconds)\b|\blong[- ]form\b|\bdocumentary\b|\bshort film\b/, reason: 'Long-form video is produced by 5D and then added to your library.' },
-  { re: /\bjingle\b|\bsong\b|\bmusic track\b|\bsound logo\b/, reason: 'Original music needs composing and licensing through 5D.' },
-  { re: /\bnew (character|mascot|face)\b/, reason: 'A new brand character has to be designed and approved before anyone can use it.' },
-  { re: /\bnew logo\b|\brebrand\b|\blogo change\b|\bchange the logo\b/, reason: 'Changes to the logo and identity go through 5D.' },
-  { re: /\bbillboard\b|\bouth?door\b|\booh\b|\bbus shelter\b|\bprint\b|\bpackaging\b|\bcatalogue\b|\bbrochure\b|\bflyer\b/, reason: 'Print, packaging and outdoor need a new template from 5D first.' },
-  { re: /\blinkedin\b|\bpinterest\b|\bthreads\b|\bgoogle ads?\b/, reason: 'There is no template for that channel yet. 5D can add one to your workspace.' },
-  { re: /\binfluencer\b|\bevent\b|\bactivation\b|\bpop[- ]up\b/, reason: 'Influencer and event work is planned with 5D.' },
+  { key: 'tv', re: /\b(tv|tvc|television|commercial)\b|تلفزيون|تليفزيون|تي ?في/ },
+  { key: 'longform', re: /\b(30|45|60|90)\s?-?(s|sec|secs|second|seconds)\b|\blong[- ]form\b|\bdocumentary\b|\bshort film\b|(30|45|60|90)\s?ثانية|فيلم|وثائقي/ },
+  { key: 'music', re: /\bjingle\b|\bsong\b|\bmusic track\b|\bsound logo\b|جينجل|أغنية|اغنية|مزيكا|موسيقى/ },
+  { key: 'character', re: /\bnew (character|mascot|face)\b|شخصية جديدة|ماسكوت جديد/ },
+  { key: 'identity', re: /\bnew logo\b|\brebrand\b|\blogo change\b|\bchange the logo\b|لوجو جديد|لوغو جديد|تغيير اللوجو|ريبراند|هوية جديدة/ },
+  { key: 'print', re: /\bbillboard\b|\bouth?door\b|\booh\b|\bbus shelter\b|\bprint\b|\bpackaging\b|\bcatalogue\b|\bbrochure\b|\bflyer\b|بيلبورد|لافتة|يافطة|مطبوعات|طباعة|تغليف|بروشور|فلاير|كتالوج/ },
+  { key: 'channel', re: /\blinkedin\b|\bpinterest\b|\bthreads\b|\bgoogle ads?\b|لينكد ?إن|لينكدان|بنترست|ثريدز/ },
+  { key: 'event', re: /\binfluencer\b|\bevent\b|\bactivation\b|\bpop[- ]up\b|مؤثر|إنفلونسر|انفلونسر|إيفنت|ايفنت|فعالية/ },
 ]
 
-const BLOCKED = brand.voice.weAvoid.concat(['sugar-free', 'sugar free', 'guilt free'])
+const BLOCKED = [...brand.voice.weAvoid, 'sugar-free', 'sugar free', 'guilt free', ...brand.voice.weAvoidAr, 'صحية', 'خالي من السكر', 'من غير سكر']
+
+// \b only understands Latin letters, so Arabic words get their own edges.
+const wordRe = (w, flags = '') =>
+  ARABIC.test(w) ? new RegExp(`(^|[\\s،.!؟:؛,])${w}(?=$|[\\s،.!؟:؛,])`, flags) : new RegExp(`\\b${w.replace('-', '[- ]')}\\b`, flags)
 
 export function findBlocked(text) {
   const lower = String(text || '').toLowerCase()
-  return BLOCKED.filter((w) => new RegExp(`\\b${w.replace('-', '[- ]')}\\b`).test(lower))
+  return BLOCKED.filter((w) => wordRe(w).test(lower))
 }
 
 export function analysePrompt(text, refIds = []) {
-  const lower = text.toLowerCase()
+  const lower = westernDigits(text.toLowerCase())
   const refs = brand.elements.filter((e) => refIds.includes(e.id) || lower.includes(`@${e.tag.toLowerCase()}`))
   let theme = 'general'
-  if (/%|\boffer\b|\bdiscount\b|\bsale\b|\bdeal\b|\bpromo|خصم|عرض/.test(lower)) theme = 'offer'
+  if (/%|\boffer\b|\bdiscount\b|\bsale\b|\bdeal\b|\bpromo|خصم|عرض|تخفيض/.test(lower)) theme = 'offer'
   else if (/\beid\b|عيد/.test(lower)) theme = 'eid'
-  else if (/\bnew\b|\blaunch|\bsyrup\b|\bintroduc/.test(lower)) theme = 'launch'
-  else if (/\bgift|\bhamper|\bpresent\b|هدية/.test(lower)) theme = 'gift'
-  else if (/ramadan|iftar|suhoor|sohour|taraweeh|lantern|رمضان|فطار|سحور/.test(lower)) theme = 'ramadan'
+  else if (/\bnew\b|\blaunch|\bsyrup\b|\bintroduc|جديد|إطلاق|اطلاق|دبس/.test(lower)) theme = 'launch'
+  else if (/\bgift|\bhamper|\bpresent\b|هدية|هدايا/.test(lower)) theme = 'gift'
+  else if (/ramadan|iftar|suhoor|sohour|taraweeh|lantern|رمضان|فطار|إفطار|افطار|سحور|تراويح|فانوس/.test(lower)) theme = 'ramadan'
 
   let product = refs.find((r) => r.type === 'Product')?.motif
   if (!product) {
     if (/maamoul|معمول|\btin\b/.test(lower)) product = 'tin'
     else if (/syrup|دبس/.test(lower)) product = 'bottle'
-    else if (/medjool|\bdates?\b|\bbox\b|تمر/.test(lower)) product = 'box'
+    else if (/medjool|\bdates?\b|\bbox\b|تمر|مجدول|علبة/.test(lower)) product = 'box'
   }
   let character = refs.find((r) => r.type === 'Character')?.motif
   if (!character) {
-    if (/teta|grandmother|grandma|تيتا|الجدة/.test(lower)) character = 'teta'
-    else if (/yassin|grandson/.test(lower)) character = 'yassin'
+    if (/teta|grandmother|grandma|تيتا|الجدة|جدتنا/.test(lower)) character = 'teta'
+    else if (/yassin|grandson|ياسين/.test(lower)) character = 'yassin'
   }
   const style = refs.find((r) => r.type === 'Style')?.motif
-  const table = refs.some((r) => r.motif === 'table') || /long table|iftar table/.test(lower)
+  const table = refs.some((r) => r.motif === 'table') || /long table|iftar table|السفرة الطويلة|سفرة طويلة|سفرة الفطار/.test(lower)
 
-  const agency = AGENCY_TRIGGERS.filter((t) => t.re.test(lower)).map((t) => t.reason)
+  const agency = AGENCY_TRIGGERS.filter((t) => t.re.test(lower)).map((t) => t.key)
   const blocked = findBlocked(lower)
-  const daytime = theme === 'ramadan' && /\b(eat|eating|drink|drinking|snack|lunch)\b/.test(lower) && /\b(day|daytime|noon|afternoon|lunch|morning)\b/.test(lower)
+  const eating = /\b(eat|eating|drink|drinking|snack|lunch)\b|ياكل|بياكل|بياكلوا|أكل|اكل|يشرب|بيشرب|شرب/.test(lower)
+  const day = /\b(day|daytime|noon|afternoon|lunch|morning)\b|نهار|الضهر|الظهر|الصبح/.test(lower)
+  const daytime = theme === 'ramadan' && eating && day
   const percent = (lower.match(/(\d{1,2})\s?%/) || [])[1]
+  const arabic = ARABIC.test(text.replace(/@\w+/g, ''))
 
-  return { text, theme, product, character, style, table, refs: refs.map((r) => r.id), agency, blocked, daytime, percent }
+  return { text, theme, product, character, style, table, refs: refs.map((r) => r.id), agency, blocked, daytime, percent, arabic }
 }
 
 const toArabicDigits = (s) => String(s).replace(/\d/g, (d) => '٠١٢٣٤٥٦٧٨٩'[d])
@@ -77,7 +90,17 @@ function applyPercent(copy, pct) {
 
 const PALETTE_BY_STYLE = { 'style-suhoor': 'night', 'style-market': 'date', 'style-studio': 'milk' }
 const PALETTE_ROTATION = ['night', 'date', 'milk', 'night']
-const CONCEPT_TITLES = ['Hero product', 'Seasonal moment', 'Family story', 'Bold offer', 'Quiet studio', 'Greeting card']
+
+// The draft echoes the brief's own wording, so a blocked word in the brief
+// reaches the copy and the brand check has to catch it.
+function echoBlocked(copy, blocked) {
+  const en = blocked.find((w) => !ARABIC.test(w))
+  const ar = blocked.find((w) => ARABIC.test(w))
+  const out = { ...copy }
+  if (en) out.english = { ...copy.english, sub: `${copy.english.sub} A ${en} treat for everyone.` }
+  if (ar) for (const d of ['egyptian', 'gulf', 'msa']) out[d] = { ...copy[d], sub: `${copy[d].sub}، وكمان ${ar}` }
+  return out
+}
 
 export function generateConcepts(analysis, { template, round = 0 } = {}) {
   const pool = [...(THEMES[analysis.theme] || THEMES.general)]
@@ -91,40 +114,36 @@ export function generateConcepts(analysis, { template, round = 0 } = {}) {
 
   return picks.map((copy0, i) => {
     let copy = analysis.theme === 'offer' ? applyPercent(copy0, analysis.percent) : copy0
-    // The draft echoes the brief's own wording, so a blocked word in the
-    // brief reaches the English copy and the brand check has to catch it.
-    if (analysis.blocked.length) {
-      copy = { ...copy, english: { ...copy.english, sub: `${copy.english.sub} A ${analysis.blocked[0]} treat for everyone.` } }
-    }
+    if (analysis.blocked.length) copy = echoBlocked(copy, analysis.blocked)
     const head = copy.english.headline.toLowerCase()
     let layout = 'hero'
     let motif = analysis.product || (analysis.theme === 'launch' ? 'bottle' : analysis.theme === 'eid' ? 'tin' : 'box')
-    let title = CONCEPT_TITLES[0]
+    let titleKey = 'hero'
     if (/kareem|mubarak|^eid$/.test(head) || (head.length < 16 && /ramadan|eid/.test(head))) {
       layout = 'greeting'
       motif = 'greeting'
-      title = 'Greeting card'
+      titleKey = 'greeting'
     } else if (/teta/.test(head) || (analysis.character && i === 1)) {
       layout = 'character'
       motif = analysis.character || 'teta'
-      title = 'Family story'
+      titleKey = 'family'
     } else if (analysis.table && i === 2) {
       motif = 'table'
-      title = 'The long table'
+      titleKey = 'table'
     } else if (copy.english.badge) {
-      title = 'Bold offer'
+      titleKey = 'offer'
     } else if (i === 3) {
       layout = 'split'
-      title = 'Split layout'
+      titleKey = 'split'
     } else if (i === 2) {
-      title = 'Seasonal moment'
+      titleKey = 'seasonal'
       if (!analysis.product) motif = analysis.theme === 'ramadan' ? 'lantern' : motif
     }
     if (template) layout = template.layout === 'greeting' && motif !== 'greeting' ? 'greeting' : template.layout
     if (layout === 'greeting') motif = 'greeting'
     if (layout === 'character' && !['teta', 'yassin'].includes(motif)) motif = analysis.character || 'teta'
     const palette = template?.palette || forcedPalette || PALETTE_ROTATION[i]
-    return { id: uid('cn'), title, layout, palette, motif, copy, theme: analysis.theme }
+    return { id: uid('cn'), titleKey, layout, palette, motif, copy, theme: analysis.theme }
   })
 }
 
@@ -136,19 +155,18 @@ export function captionFor(concept, channel, dialect) {
   if (channel.id !== 'yt-thumb') parts.push(copy.cta)
   let text = ar ? parts.join('\n') : parts.map((p) => (/[.!?]$/.test(p) ? p : `${p}.`)).join(' ')
   if (channel.hashtags) text += `\n\n${(ar ? tags.ar : tags.en).join(' ')}`
-  if (channel.captionLimit && text.length > channel.captionLimit) {
-    text = ar ? copy.headline : copy.headline
-  }
+  if (channel.captionLimit && text.length > channel.captionLimit) text = copy.headline
   if (channel.captionLimit === 0) text = ''
   return text
 }
 
-export function defaultDialect(channel) {
+export function defaultDialect(channel, arabicFirst = false) {
   // Egypt-first accounts default to Egyptian, Gulf placements to Gulf.
   if (['tiktok', 'fb-feed', 'wa-status'].includes(channel.id)) return 'egyptian'
   if (['snap'].includes(channel.id)) return 'gulf'
   if (['x-post', 'yt-thumb'].includes(channel.id)) return 'msa'
-  return 'english'
+  // A brief written in Arabic puts Instagram in Egyptian too.
+  return arabicFirst ? 'egyptian' : 'english'
 }
 
 const pad2 = (n) => String(n).padStart(2, '0')
@@ -164,9 +182,9 @@ export function suggestTime(channel, theme, base = new Date()) {
   return toLocalInput(d)
 }
 
-export function buildFormats(concept, enabledIds) {
+export function buildFormats(concept, enabledIds, { arabicFirst = false } = {}) {
   return channels.map((ch) => {
-    const dialect = defaultDialect(ch)
+    const dialect = defaultDialect(ch, arabicFirst)
     return {
       channelId: ch.id,
       enabled: enabledIds ? enabledIds.includes(ch.id) : true,
@@ -177,43 +195,45 @@ export function buildFormats(concept, enabledIds) {
   })
 }
 
+const COPY_KEYS = ['english', 'egyptian', 'gulf', 'msa']
+
 // Runs every brand rule against a post. Enforced rules block approval.
+// Notes come back as interface keys so they read in either language.
 export function brandCheck(post, rules) {
   const results = []
   const rule = (id) => rules.find((r) => r.id === id)
-  const push = (id, status, note, fix) => {
+  const push = (id, status, noteKey, vars, fix) => {
     const r = rule(id)
     if (!r) return
     const s = !r.enforced && status === 'fail' ? 'warn' : status
-    results.push({ ruleId: id, category: r.category, text: r.text, status: s, note, fix })
+    results.push({ ruleId: id, rule: r, status: s, noteKey, vars, fix })
   }
   const live = post.formats.filter((f) => f.enabled)
-  push('r-logo-space', 'pass', 'Clear space is locked in every template.')
-  push('r-logo-colour', 'pass', `Logo renders in ${post.concept.palette === 'milk' ? 'date brown on milk cream' : 'saffron gold'}.`)
-  push('r-palette', 'pass', `Background is ${({ night: 'night indigo', date: 'date brown', milk: 'milk cream' })[post.concept.palette]}.`)
-  push('r-type', 'pass', 'Headlines set in Young Serif and Reem Kufi.')
+  const pal = post.concept.palette
+  push('r-logo-space', 'pass', 'check.logoSpace')
+  push('r-logo-colour', 'pass', 'check.logoColour', { colourKey: pal === 'milk' ? 'colour.dateOnMilk' : 'colour.saffron' })
+  push('r-palette', 'pass', 'check.palette', { colourKey: `colour.${pal}` })
+  push('r-type', 'pass', 'check.type')
 
-  const hits = []
-  for (const f of live) {
-    for (const w of findBlocked(f.caption)) hits.push({ channelId: f.channelId, word: w })
+  const words = new Set()
+  for (const f of live) for (const w of findBlocked(f.caption)) words.add(w)
+  for (const k of COPY_KEYS) {
+    const c = post.concept.copy[k]
+    if (c) for (const w of findBlocked(`${c.headline} ${c.sub}`)) words.add(w)
   }
-  for (const w of findBlocked(post.concept.copy.english.headline + ' ' + post.concept.copy.english.sub)) hits.push({ channelId: 'artwork', word: w })
-  if (hits.length) {
-    const words = [...new Set(hits.map((h) => h.word))]
-    push('r-claims', 'fail', `Blocked ${words.length > 1 ? 'words' : 'word'} found: ${words.join(', ')}.`, { kind: 'swap-words', words })
-  } else push('r-claims', 'pass', 'No health, diet or medical claims.')
+  if (words.size) push('r-claims', 'fail', 'check.claimsFail', { words: [...words] }, { kind: 'swap-words', words: [...words] })
+  else push('r-claims', 'pass', 'check.claimsPass')
 
-  if (post.analysis?.daytime && !post.resolved?.daytime) {
-    push('r-ramadan', 'fail', 'The brief asks for eating or drinking in a daytime scene during Ramadan.', { kind: 'move-to-iftar' })
-  } else push('r-ramadan', 'pass', post.concept.theme === 'ramadan' ? 'Scene is set at iftar or suhoor.' : 'Not a Ramadan placement.')
+  if (post.analysis?.daytime && !post.resolved?.daytime) push('r-ramadan', 'fail', 'check.ramadanFail', null, { kind: 'move-to-iftar' })
+  else push('r-ramadan', 'pass', post.concept.theme === 'ramadan' ? 'check.ramadanPass' : 'check.notRamadan')
 
   const arabic = live.filter((f) => f.dialect !== 'english').length
-  push('r-dialect', 'pass', `${arabic} of ${live.length} formats in Arabic, each in its market dialect.`)
+  push('r-dialect', 'pass', 'check.dialect', { a: arabic, n: live.length })
 
   if (post.concept.theme === 'offer') {
-    if (post.offerCode) push('r-price', 'pass', `Offer code ${post.offerCode} matches the trade calendar.`)
-    else push('r-price', 'fail', 'This post shows a discount without an offer code.', { kind: 'offer-code' })
-  } else push('r-price', 'pass', 'No price or discount shown.')
+    if (post.offerCode) push('r-price', 'pass', 'check.pricePass', { code: post.offerCode })
+    else push('r-price', 'fail', 'check.priceFail', null, { kind: 'offer-code' })
+  } else push('r-price', 'pass', 'check.priceNone')
   return results
 }
 
@@ -221,17 +241,16 @@ export function applyWordSwaps(post, words) {
   const swap = (text) => {
     let out = text
     for (const w of words) {
-      const rep = SAFE_SWAPS[w] || 'made with care'
-      out = out.replace(new RegExp(`\\b${w.replace('-', '[- ]')}\\b`, 'gi'), rep)
+      const rep = SAFE_SWAPS[w] || (ARABIC.test(w) ? 'معمول بحب' : 'made with care')
+      out = ARABIC.test(w) ? out.replace(wordRe(w, 'g'), (m, lead) => `${lead}${rep}`) : out.replace(wordRe(w, 'gi'), rep)
     }
     return out
   }
+  const copy = {}
+  for (const [k, v] of Object.entries(post.concept.copy)) copy[k] = { ...v, headline: swap(v.headline), sub: swap(v.sub) }
   return {
     ...post,
-    concept: {
-      ...post.concept,
-      copy: { ...post.concept.copy, english: { ...post.concept.copy.english, headline: swap(post.concept.copy.english.headline), sub: swap(post.concept.copy.english.sub) } },
-    },
+    concept: { ...post.concept, copy },
     formats: post.formats.map((f) => ({ ...f, caption: swap(f.caption) })),
   }
 }

@@ -11,7 +11,8 @@ function applyBrandTokens() {
   root.setProperty('--brand', brandColour('night'))
   root.setProperty('--brand-ink', brandColour('milk'))
   root.setProperty('--brand-accent', brandColour('saffron'))
-  root.setProperty('--display', `'${brand.type.display.family}', Georgia, serif`)
+  root.setProperty('--display', `'${brand.type.display.family}', '${brand.type.displayAr.family}', Georgia, serif`)
+  root.setProperty('--display-ar', `'${brand.type.displayAr.family}', '${brand.type.bodyAr.family}', sans-serif`)
   document.title = brand.workspaceName
 }
 applyBrandTokens()

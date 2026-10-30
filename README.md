@@ -38,6 +38,14 @@ The client is a configuration, not a fork.
 
 The drawn illustrations in `src/creative/motifs.jsx` stand in for generated imagery. In the live product they are replaced by images from the image engine, built from the brand's saved characters, products and styles.
 
+## Arabic
+
+The interface runs in English or Egyptian Arabic, switched from the top bar, and the choice is remembered. In Arabic the whole layout mirrors, the week starts on Saturday, and verbs agree with the person using the screen or the person who acted.
+
+Interface strings live in `src/i18n/en.js` and `src/i18n/ar.js`. Content carries Arabic in a sibling field (`title` and `titleAr`, `name` and `nameAr`), and `L(obj, 'title')` picks the right one. Notifications and history are stored as keys with values, so they read in whichever language the viewer has chosen.
+
+Briefs can be written in either language. An Arabic brief is understood the same way as an English one, routed to the agency on the same triggers, checked against the Arabic blocked words in the brand voice, and defaults Instagram to Egyptian Arabic. Artwork language is set per channel and does not follow the interface.
+
 ## What has to change before a real client uses it
 
 Data moves from browser storage to a shared backend with sign-in and roles, so the client's team, the approver and the agency see the same work. Engine keys and platform tokens move to the server. Publishing goes through each network's own API behind the approval gate. Reporting reads real performance against a baseline both sides sign before the pilot.

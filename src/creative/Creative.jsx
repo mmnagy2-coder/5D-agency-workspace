@@ -1,4 +1,5 @@
 import { useId } from 'react'
+import { isAr, t } from '../i18n/index.js'
 import { C, Crescent, Motif, StarPattern } from './motifs.jsx'
 
 // Renders one creative at a channel's exact delivery size.
@@ -187,8 +188,11 @@ export function Creative({ w = 1080, h = 1080, concept, dialect = 'english', sho
         <g pointerEvents="none">
           <rect x="0" y="0" width={w} height={h * 0.13} fill="#E5484D" opacity="0.28" />
           <rect x="0" y={h - h * 0.2} width={w} height={h * 0.2} fill="#E5484D" opacity="0.28" />
-          <text x={w / 2} y={h * 0.075} textAnchor="middle" fontFamily={FONTS.body} fontSize={m * 0.035} fill="#fff">Platform interface</text>
-          <text x={w / 2} y={h - h * 0.1} textAnchor="middle" fontFamily={FONTS.body} fontSize={m * 0.035} fill="#fff">Platform interface</text>
+          {[h * 0.075, h - h * 0.1].map((y) => (
+            <text key={y} x={w / 2} y={y} textAnchor="middle" fontFamily={isAr() ? FONTS.bodyAr : FONTS.body} direction={isAr() ? 'rtl' : 'ltr'} fontSize={m * 0.035} fill="#fff">
+              {t('format.safeZone')}
+            </text>
+          ))}
         </g>
       )}
     </svg>

@@ -1,26 +1,13 @@
 import { useState } from 'react'
-import { agency } from '../config/agency.js'
 import { Creative } from '../creative/Creative.jsx'
+import { inputDir, isAr, t as tr } from '../i18n/index.js'
 import { THEMES } from '../lib/copy.js'
 import { uid } from '../lib/simulate.js'
 import { Modal } from './ui.jsx'
 
-export const LAYOUTS = [
-  ['hero', 'Product hero'],
-  ['split', 'Split band'],
-  ['greeting', 'Framed greeting'],
-  ['character', 'Character quote'],
-]
-export const MOTIFS = [
-  ['box', 'Medjool Reserve box'],
-  ['tin', 'Maamoul tin'],
-  ['bottle', 'Date syrup'],
-  ['teta', 'Teta Nour'],
-  ['yassin', 'Yassin'],
-  ['table', 'Long table'],
-  ['lantern', 'Lantern'],
-]
-export const THEME_NAMES = { general: 'Everyday', ramadan: 'Ramadan', eid: 'Eid', launch: 'Launch', offer: 'Offer', gift: 'Gifting' }
+export const LAYOUTS = ['hero', 'split', 'greeting', 'character']
+export const MOTIFS = ['box', 'tin', 'bottle', 'teta', 'yassin', 'table', 'lantern']
+export const THEMES_LIST = ['general', 'ramadan', 'eid', 'launch', 'offer', 'gift']
 
 export function templateConcept(t) {
   const copy = (THEMES[t.sampleTheme] || THEMES.general)[0]
@@ -31,87 +18,89 @@ export function templateConcept(t) {
 export function TemplateBuilder({ onClose, onPublish, initial }) {
   const [t, setT] = useState(
     initial || {
-      name: 'Corporate gifting, landscape',
+      name: tr('builder.defaultName'),
       layout: 'hero',
       palette: 'night',
       motif: 'box',
       sampleTheme: 'gift',
-      description: 'Gift box for company orders. Built for LinkedIn and email headers.',
+      description: tr('builder.defaultDescription'),
     },
   )
   const set = (k) => (e) => setT({ ...t, [k]: e.target.value })
   const concept = templateConcept({ ...t, id: 'draft' })
   return (
-    <Modal onClose={onClose} wide label="Build a template">
-      <h2>Build a template for Qamari</h2>
+    <Modal onClose={onClose} wide label={tr('templates.build')}>
+      <h2>{tr('builder.title')}</h2>
       <p className="small muted" style={{ marginTop: -6 }}>
-        Logo position, clear space, palette and type stay locked to the brand kit. The client's team can only change the words and the product.
+        {tr('builder.lede')}
       </p>
       <div className="grid" style={{ gridTemplateColumns: '300px 1fr', alignItems: 'start' }}>
         <div className="stack">
           <label className="field">
-            Name
-            <input type="text" value={t.name} onChange={set('name')} />
+            {tr('field.name')}
+            <input type="text" value={t.name} dir={inputDir(t.name)} onChange={set('name')} />
           </label>
           <label className="field">
-            Layout
+            {tr('field.layout')}
             <select value={t.layout} onChange={set('layout')}>
-              {LAYOUTS.map(([id, l]) => (
+              {LAYOUTS.map((id) => (
                 <option key={id} value={id}>
-                  {l}
+                  {tr(`layout.${id}`)}
                 </option>
               ))}
             </select>
           </label>
           <label className="field">
-            Background
+            {tr('field.background')}
             <select value={t.palette} onChange={set('palette')}>
-              <option value="night">Night indigo</option>
-              <option value="date">Date brown</option>
-              <option value="milk">Milk cream</option>
+              {['night', 'date', 'milk'].map((id) => (
+                <option key={id} value={id}>
+                  {tr(`colour.${id}`)}
+                </option>
+              ))}
             </select>
           </label>
           <label className="field">
-            Default subject
+            {tr('field.subject')}
             <select value={t.motif} onChange={set('motif')} disabled={t.layout === 'greeting'}>
-              {MOTIFS.map(([id, l]) => (
+              {MOTIFS.map((id) => (
                 <option key={id} value={id}>
-                  {l}
+                  {tr(`motif.${id}`)}
                 </option>
               ))}
             </select>
           </label>
           <label className="field">
-            Sample copy
+            {tr('field.sample')}
             <select value={t.sampleTheme} onChange={set('sampleTheme')}>
-              {Object.entries(THEME_NAMES).map(([id, l]) => (
+              {THEMES_LIST.map((id) => (
                 <option key={id} value={id}>
-                  {l}
+                  {tr(`theme.${id}`)}
                 </option>
               ))}
             </select>
           </label>
           <label className="field">
-            When to use it
-            <textarea value={t.description} onChange={set('description')} />
+            {tr('field.when')}
+            <textarea value={t.description} dir={inputDir(t.description)} onChange={set('description')} />
           </label>
           <button
             className="btn agency lg"
             disabled={!t.name.trim()}
             onClick={() => onPublish({ ...t, id: uid('tpl'), source: '5D', isNew: true, addedAt: new Date().toISOString() })}
           >
-            Publish to Qamari's workspace
+            {tr('builder.publish')}
           </button>
-          <span className="tiny muted">It appears in the client's templates straight away, marked as new from {agency.name}.</span>
+          <span className="tiny muted">{tr('builder.note')}</span>
         </div>
         <div className="grid" style={{ gridTemplateColumns: '1fr 0.72fr', alignItems: 'start' }}>
           <div className="stack">
             <div style={{ lineHeight: 0, borderRadius: 6, overflow: 'hidden' }}>
-              <Creative w={1600} h={900} concept={concept} />
+              <Creative w={1600} h={900} concept={concept} dialect={isAr() ? 'egyptian' : 'english'} />
             </div>
             <div className="grid cols-2">
               <div style={{ lineHeight: 0, borderRadius: 6, overflow: 'hidden' }}>
-                <Creative w={1080} h={1080} concept={concept} />
+                <Creative w={1080} h={1080} concept={concept} dialect={isAr() ? 'english' : 'egyptian'} />
               </div>
               <div style={{ lineHeight: 0, borderRadius: 6, overflow: 'hidden' }}>
                 <Creative w={1080} h={1080} concept={concept} dialect="gulf" />

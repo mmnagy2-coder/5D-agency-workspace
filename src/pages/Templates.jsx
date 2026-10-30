@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
-import { agency } from '../config/agency.js'
-import { TemplateBuilder, templateConcept, THEME_NAMES } from '../components/TemplateBuilder.jsx'
-import { go, Icon } from '../components/ui.jsx'
+import { TemplateBuilder, templateConcept } from '../components/TemplateBuilder.jsx'
+import { go, Icon, thumbDialect } from '../components/ui.jsx'
+import { hasArabic, isAr, L, t } from '../i18n/index.js'
 import { Creative } from '../creative/Creative.jsx'
 import { ROLE_INFO, useStore } from '../store/store.jsx'
 
@@ -12,12 +12,12 @@ export default function Templates() {
 
   useEffect(() => {
     if (side !== 'client') return
-    const t = setTimeout(() => dispatch({ type: 'template/seen' }), 4000)
-    return () => clearTimeout(t)
+    const timer = setTimeout(() => dispatch({ type: 'template/seen' }), 4000)
+    return () => clearTimeout(timer)
   }, [side, dispatch])
 
-  const use = (t) => {
-    dispatch({ type: 'composer', composer: { prompt: '', templateId: t.id, prefillOnly: true } })
+  const use = (tpl) => {
+    dispatch({ type: 'composer', composer: { prompt: '', templateId: tpl.id, prefillOnly: true } })
     go('create')
   }
 
@@ -25,40 +25,42 @@ export default function Templates() {
     <div className="page">
       <div className="row between">
         <div>
-          <h1>Templates</h1>
-          <p className="lede">Each template locks the logo, clear space, palette and type, and re-lays itself for every channel. New ones arrive from {agency.name} when the team needs something the studio cannot make yet.</p>
+          <h1>{t('nav.templates')}</h1>
+          <p className="lede">{t('templates.lede')}</p>
         </div>
         {side === 'agency' && (
           <button className="btn agency" onClick={() => setBuilding(true)}>
-            <Icon name="plus" size={16} /> Build a template
+            <Icon name="plus" size={16} /> {t('templates.build')}
           </button>
         )}
       </div>
       <div className="grid cols-3">
-        {state.templates.map((t) => {
-          const c = templateConcept(t)
+        {state.templates.map((tpl) => {
+          const c = templateConcept(tpl)
+          const main = thumbDialect()
+          const other = isAr() ? 'english' : 'egyptian'
           return (
-            <article key={t.id} className="creative">
+            <article key={tpl.id} className="creative">
               <div className="art" style={{ display: 'grid', gridTemplateColumns: '1.25fr 0.75fr', gap: 4, padding: 4, background: 'var(--line-soft)' }}>
-                <Creative w={1080} h={1350} concept={c} />
+                <Creative w={1080} h={1350} concept={c} dialect={main} />
                 <div style={{ display: 'grid', gap: 4 }}>
-                  <Creative w={1080} h={1080} concept={c} dialect="egyptian" />
-                  <Creative w={1600} h={900} concept={c} />
+                  <Creative w={1080} h={1080} concept={c} dialect={other} />
+                  <Creative w={1600} h={900} concept={c} dialect={main} />
                 </div>
               </div>
               <div className="meta">
                 <div className="row between">
-                  <b>{t.name}</b>
+                  <b>{L(tpl, 'name')}</b>
                   <span className="row" style={{ gap: 4 }}>
-                    {t.isNew && side === 'client' && <span className="tag warn">New</span>}
-                    <span className={`tag ${t.source === '5D' ? 'agency' : 'brand'}`}>{t.source === '5D' ? `From ${agency.name}` : 'Brand'}</span>
+                    {tpl.isNew && side === 'client' && <span className="tag warn">{t('templates.new')}</span>}
+                    <span className={`tag ${tpl.source === '5D' ? 'agency' : 'brand'}`}>{tpl.source === '5D' ? t('templates.fromAgency') : t('templates.brand')}</span>
                   </span>
                 </div>
-                <span className="small muted">{t.description}</span>
-                <span className="tiny muted">Sample shown: {THEME_NAMES[t.sampleTheme]}</span>
+                <span className="small muted">{L(tpl, 'description')}</span>
+                <span className="tiny muted">{t('templates.sample', { theme: t(`theme.${tpl.sampleTheme}`) })}</span>
                 <div className="row" style={{ marginTop: 6 }}>
-                  <button className="btn sm primary" onClick={() => use(t)}>
-                    Use this template
+                  <button className="btn sm primary" onClick={() => use(tpl)}>
+                    {t('templates.use')}
                   </button>
                 </div>
               </div>
@@ -69,10 +71,11 @@ export default function Templates() {
       {building && (
         <TemplateBuilder
           onClose={() => setBuilding(false)}
-          onPublish={(tpl) => {
+          onPublish={(tpl0) => {
+            const tpl = { ...tpl0, nameAr: hasArabic(tpl0.name) ? tpl0.name : undefined, descriptionAr: hasArabic(tpl0.description) ? tpl0.description : undefined }
             dispatch({ type: 'template/add', template: tpl })
-            dispatch({ type: 'notify', note: { to: 'client', text: `${agency.name} added a new template: ${tpl.name}.`, link: 'templates' } })
-            toast(`Published ${tpl.name} to Qamari's workspace`, 'agency')
+            dispatch({ type: 'notify', note: { to: 'client', key: 'n.templateAdded', vars: { name: tpl.name, nameAr: tpl.nameAr }, link: 'templates' } })
+            toast(t('templates.published', { name: L(tpl, 'name') }), 'agency')
             setBuilding(false)
           }}
         />

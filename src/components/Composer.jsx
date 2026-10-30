@@ -2,6 +2,7 @@ import { useMemo, useRef, useState } from 'react'
 import { brand } from '../config/brand.js'
 import { Motif } from '../creative/motifs.jsx'
 import { C } from '../creative/motifs.jsx'
+import { inputDir, L, t } from '../i18n/index.js'
 import { Icon } from './ui.jsx'
 
 export function ElementThumb({ el, size = 34 }) {
@@ -19,7 +20,7 @@ export function ElementThumb({ el, size = 34 }) {
 
 export const refsIn = (text) => brand.elements.filter((e) => new RegExp(`@${e.tag}\\b`, 'i').test(text))
 
-export function Composer({ value, onChange, onSubmit, templates = [], templateId, onTemplate, submitLabel = 'Create', autoFocus }) {
+export function Composer({ value, onChange, onSubmit, templates = [], templateId, onTemplate, submitLabel, autoFocus }) {
   const ta = useRef(null)
   const [pop, setPop] = useState(null) // { query, start }
   const [hl, setHl] = useState(0)
@@ -28,7 +29,7 @@ export function Composer({ value, onChange, onSubmit, templates = [], templateId
   const matches = useMemo(() => {
     if (!pop) return []
     const q = pop.query.toLowerCase()
-    return brand.elements.filter((e) => e.tag.toLowerCase().includes(q) || e.name.toLowerCase().includes(q) || e.type.toLowerCase().includes(q))
+    return brand.elements.filter((e) => e.tag.toLowerCase().includes(q) || e.name.toLowerCase().includes(q) || e.type.toLowerCase().includes(q) || (e.nameAr || '').includes(q))
   }, [pop])
 
   const onInput = (e) => {
@@ -93,18 +94,19 @@ export function Composer({ value, onChange, onSubmit, templates = [], templateId
         onChange={onInput}
         onKeyDown={onKey}
         autoFocus={autoFocus}
-        aria-label="Describe what you need"
-        placeholder="Describe what you need. Type @ to bring in a character, product or style from the brand kit."
+        aria-label={t('composer.label')}
+        placeholder={t('composer.placeholder')}
+        dir={inputDir(value)}
       />
       {pop && matches.length > 0 && (
-        <div className="mention-pop" role="listbox" aria-label="Brand elements">
+        <div className="mention-pop" role="listbox" aria-label={t('composer.elements')}>
           {matches.map((el, i) => (
             <button key={el.id} type="button" className={i === hl ? 'hl' : ''} onMouseDown={(e) => e.preventDefault()} onClick={() => insert(el)} role="option" aria-selected={i === hl}>
               <ElementThumb el={el} />
               <span>
                 <b>@{el.tag}</b>
                 <div className="tiny muted">
-                  {el.type}. {el.name}
+                  {L(el, 'type')}. {L(el, 'name')}
                 </div>
               </span>
             </button>
@@ -115,7 +117,7 @@ export function Composer({ value, onChange, onSubmit, templates = [], templateId
         {refs.map((el) => (
           <span key={el.id} className="chip ref">
             @{el.tag}
-            <button type="button" aria-label={`Remove ${el.tag}`} onClick={() => removeRef(el)}>
+            <button type="button" aria-label={t('composer.remove', { tag: el.tag })} onClick={() => removeRef(el)}>
               ×
             </button>
           </span>
@@ -135,22 +137,22 @@ export function Composer({ value, onChange, onSubmit, templates = [], templateId
             })
           }}
         >
-          <Icon name="at" size={14} /> Brand kit
+          <Icon name="at" size={14} /> {t('nav.kit')}
         </button>
         {onTemplate && (
-          <select value={templateId || ''} onChange={(e) => onTemplate(e.target.value || null)} style={{ width: 'auto', padding: '4px 8px', fontSize: 13, borderRadius: 99 }} aria-label="Template">
-            <option value="">Any template</option>
-            {templates.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.name}
-                {t.source === '5D' ? ' (from 5D)' : ''}
+          <select value={templateId || ''} onChange={(e) => onTemplate(e.target.value || null)} style={{ width: 'auto', padding: '4px 8px', fontSize: 13, borderRadius: 99 }} aria-label={t('composer.template')}>
+            <option value="">{t('composer.anyTemplate')}</option>
+            {templates.map((tp) => (
+              <option key={tp.id} value={tp.id}>
+                {L(tp, 'name')}
+                {tp.source === '5D' ? t('composer.from5d') : ''}
               </option>
             ))}
           </select>
         )}
         <span style={{ flex: 1 }} />
         <button type="button" className="btn primary" disabled={!value.trim()} onClick={onSubmit}>
-          {submitLabel}
+          {submitLabel || t('composer.create')}
         </button>
       </div>
     </div>

@@ -2,13 +2,16 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useReducer,
 import { brand } from '../config/brand.js'
 import { networks } from '../config/channels.js'
 import { seedAssets, seedNotifications, seedPosts, seedTemplates, seedTickets } from '../data/seed.js'
+import { setLang } from '../i18n/index.js'
 import { uid } from '../lib/simulate.js'
 
-const KEY = 'brand-studio.v1'
+// v2 adds the Arabic interface and Arabic demo content.
+const KEY = 'brand-studio.v2'
 
 function initialState() {
   return {
     role: 'maker',
+    lang: 'en',
     posts: seedPosts(),
     templates: seedTemplates,
     assets: seedAssets,
@@ -22,19 +25,24 @@ function initialState() {
 }
 
 function load() {
+  let state = initialState()
   try {
     const raw = localStorage.getItem(KEY)
-    if (raw) return { ...initialState(), ...JSON.parse(raw) }
+    if (raw) state = { ...state, ...JSON.parse(raw) }
   } catch {
     /* fall through to a fresh workspace */
   }
-  return initialState()
+  setLang(state.lang)
+  return state
 }
 
 function reducer(state, a) {
   switch (a.type) {
     case 'role':
       return { ...state, role: a.role }
+    case 'lang':
+      setLang(a.lang)
+      return { ...state, lang: a.lang }
     case 'composer':
       return { ...state, composer: a.composer }
     case 'post/add':
@@ -69,7 +77,7 @@ function reducer(state, a) {
     case 'notifications/read':
       return { ...state, notifications: state.notifications.map((n) => (n.to === a.to ? { ...n, read: true } : n)) }
     case 'reset':
-      return { ...initialState(), role: state.role }
+      return { ...initialState(), role: state.role, lang: state.lang }
     default:
       return state
   }
@@ -106,7 +114,7 @@ export function useStore() {
 
 // Role switcher. Makers draft, the approver signs off, 5D supports.
 export const ROLE_INFO = {
-  maker: { person: 'karim', side: 'client', label: 'Karim, content' },
-  approver: { person: 'layla', side: 'client', label: 'Layla, approver' },
-  agency: { person: 'omar', side: 'agency', label: 'Omar, 5D' },
+  maker: { person: 'karim', side: 'client', labelKey: 'role.maker' },
+  approver: { person: 'layla', side: 'client', labelKey: 'role.approver' },
+  agency: { person: 'omar', side: 'agency', labelKey: 'role.agency' },
 }

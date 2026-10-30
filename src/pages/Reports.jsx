@@ -1,4 +1,5 @@
-import { agency } from '../config/agency.js'
+import { networkName } from '../config/channels.js'
+import { isAr, ltr, t } from '../i18n/index.js'
 import { useStore } from '../store/store.jsx'
 import { NETWORK_COLOURS } from './Calendar.jsx'
 
@@ -15,24 +16,22 @@ const CHANNEL_PERF = [
   { network: 'YouTube', posts: 9, reach: '420K', er: 3.0, was: 2.4 },
 ]
 
+const fmt = (v, unit) => (unit === '$' ? ltr(`$${v}`) : unit === 'h' ? t('reports.hours', { n: v }) : `${v}`)
+
 function Pair({ label, old, now, unit = '', max, lowerBetter = true }) {
   const better = lowerBetter ? now < old : now > old
   return (
     <div className="bar-row">
       <div className="small" style={{ fontWeight: 600 }}>
         {label}
-        <div className="tiny muted">{lowerBetter ? 'Lower is better' : 'Higher is better'}</div>
+        <div className="tiny muted">{t(lowerBetter ? 'reports.lower' : 'reports.higher')}</div>
       </div>
       <div className="bar-pair">
         <div className="bar" style={{ width: `${(old / max) * 80}%`, background: '#b9bbb4' }}>
-          <span className="muted">
-            {unit === '$' ? `$${old}` : `${old}${unit}`} before
-          </span>
+          <span className="muted">{t('reports.before', { v: fmt(old, unit) })}</span>
         </div>
         <div className="bar" style={{ width: `${Math.max((now / max) * 80, 1)}%`, background: better ? 'var(--brand)' : 'var(--bad)' }}>
-          <span>
-            {unit === '$' ? `$${now}` : `${now}${unit}`} now
-          </span>
+          <span>{t('reports.now', { v: fmt(now, unit) })}</span>
         </div>
       </div>
     </div>
@@ -59,92 +58,90 @@ export default function Reports() {
 
   return (
     <div className="page">
-      <h1>The new way against the old way</h1>
-      <p className="lede">
-        Measured against the baseline Qamari and {agency.name} signed before the pilot, taken from the last three campaigns run the old way. Figures in this prototype are illustrative. Assets, approvals and changes asked for update live from the work in this workspace.
-      </p>
+      <h1>{t('reports.title')}</h1>
+      <p className="lede">{t('reports.lede')}</p>
 
       <div className="grid cols-4" style={{ marginBottom: 28 }}>
         <div className="panel stat">
-          <span className="small muted">Brief to live</span>
-          <b>{PILOT.daysToLive} days</b>
-          <span className="was">was {BASELINE.daysToLive} days</span>
+          <span className="small muted">{t('reports.briefToLive')}</span>
+          <b>{t('reports.days', { n: PILOT.daysToLive })}</b>
+          <span className="was">{t('reports.was', { v: t('reports.days', { n: BASELINE.daysToLive }) })}</span>
         </div>
         <div className="panel stat">
-          <span className="small muted">Cost per asset</span>
+          <span className="small muted">{t('reports.cost')}</span>
           <b>${PILOT.costPerAsset}</b>
-          <span className="was">was ${BASELINE.costPerAsset}</span>
+          <span className="was">{t('reports.was', { v: ltr(`$${BASELINE.costPerAsset}`) })}</span>
         </div>
         <div className="panel stat">
-          <span className="small muted">Assets this month</span>
+          <span className="small muted">{t('reports.assets')}</span>
           <b>{assets}</b>
-          <span className="was">was {BASELINE.assetsPerMonth} a month</span>
+          <span className="was">{t('reports.wasMonth', { n: BASELINE.assetsPerMonth })}</span>
         </div>
         <div className="panel stat">
-          <span className="small muted">Time to approval</span>
-          <b>{approvalHours} h</b>
-          <span className="was">was {BASELINE.approvalHours} h</span>
+          <span className="small muted">{t('reports.approval')}</span>
+          <b>{t('reports.hours', { n: approvalHours })}</b>
+          <span className="was">{t('reports.was', { v: t('reports.hours', { n: BASELINE.approvalHours }) })}</span>
         </div>
       </div>
 
       <div className="grid cols-2" style={{ alignItems: 'start', marginBottom: 28 }}>
         <div className="panel">
           <div className="row between" style={{ marginBottom: 14 }}>
-            <h2 style={{ margin: 0 }}>Per asset</h2>
+            <h2 style={{ margin: 0 }}>{t('reports.perAsset')}</h2>
             <div className="legend">
               <span>
                 <i style={{ background: '#b9bbb4' }} />
-                Old way
+                {t('reports.oldWay')}
               </span>
               <span>
                 <i style={{ background: 'var(--brand)' }} />
-                With the studio
+                {t('reports.newWay')}
               </span>
             </div>
           </div>
           <div className="bars">
-            <Pair label="Days from brief to live" old={BASELINE.daysToLive} now={PILOT.daysToLive} max={BASELINE.daysToLive} />
-            <Pair label="Cost per asset" old={BASELINE.costPerAsset} now={PILOT.costPerAsset} unit="$" max={BASELINE.costPerAsset} />
-            <Pair label="Revision rounds" old={BASELINE.revisions} now={PILOT.revisions} max={BASELINE.revisions} />
-            <Pair label="Hours to approval" old={BASELINE.approvalHours} now={approvalHours} max={BASELINE.approvalHours} />
+            <Pair label={t('reports.daysLabel')} old={BASELINE.daysToLive} now={PILOT.daysToLive} max={BASELINE.daysToLive} />
+            <Pair label={t('reports.cost')} old={BASELINE.costPerAsset} now={PILOT.costPerAsset} unit="$" max={BASELINE.costPerAsset} />
+            <Pair label={t('reports.revisions')} old={BASELINE.revisions} now={PILOT.revisions} max={BASELINE.revisions} />
+            <Pair label={t('reports.hoursLabel')} old={BASELINE.approvalHours} now={approvalHours} unit="h" max={BASELINE.approvalHours} />
           </div>
         </div>
         <div className="panel">
-          <h2>Where {agency.name}'s hours go each month</h2>
+          <h2>{t('reports.hoursGo')}</h2>
           <div className="bars">
-            <Pair label="Routine production" old={BASELINE.routineHours} now={PILOT.routineHours} unit=" h" max={BASELINE.routineHours} />
-            <Pair label="New creative and strategy" old={BASELINE.creativeHours} now={PILOT.creativeHours} unit=" h" max={BASELINE.routineHours} lowerBetter={false} />
+            <Pair label={t('reports.routine')} old={BASELINE.routineHours} now={PILOT.routineHours} unit="h" max={BASELINE.routineHours} />
+            <Pair label={t('reports.creative')} old={BASELINE.creativeHours} now={PILOT.creativeHours} unit="h" max={BASELINE.routineHours} lowerBetter={false} />
           </div>
           <p className="small muted" style={{ marginTop: 18 }}>
-            The point of the pilot is this shift. The client's team makes the everyday assets, and the agency's time moves to the work only an agency can do.
+            {t('reports.shift')}
           </p>
         </div>
       </div>
 
       <div className="grid cols-2" style={{ alignItems: 'start' }}>
         <div className="panel">
-          <h2>By channel, last 30 days</h2>
+          <h2>{t('reports.byChannel')}</h2>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
             <thead>
-              <tr className="muted small" style={{ textAlign: 'left' }}>
-                <th style={{ padding: '6px 4px' }}>Channel</th>
-                <th style={{ padding: '6px 4px', textAlign: 'right' }}>Posts</th>
-                <th style={{ padding: '6px 4px', textAlign: 'right' }}>Reach</th>
-                <th style={{ padding: '6px 4px', textAlign: 'right' }}>Engagement</th>
-                <th style={{ padding: '6px 4px', textAlign: 'right' }}>Before</th>
+              <tr className="muted small" style={{ textAlign: 'start' }}>
+                <th style={{ padding: '6px 4px', textAlign: 'start' }}>{t('reports.th.channel')}</th>
+                <th style={{ padding: '6px 4px', textAlign: 'end' }}>{t('reports.th.posts')}</th>
+                <th style={{ padding: '6px 4px', textAlign: 'end' }}>{t('reports.th.reach')}</th>
+                <th style={{ padding: '6px 4px', textAlign: 'end' }}>{t('reports.th.engagement')}</th>
+                <th style={{ padding: '6px 4px', textAlign: 'end' }}>{t('reports.th.before')}</th>
               </tr>
             </thead>
             <tbody>
               {CHANNEL_PERF.map((r) => (
                 <tr key={r.network} style={{ borderTop: '1px solid var(--line-soft)' }}>
                   <td style={{ padding: '8px 4px' }}>
-                    <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: NETWORK_COLOURS[r.network], marginRight: 8 }} />
-                    {r.network}
+                    <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: NETWORK_COLOURS[r.network], marginInlineEnd: 8 }} />
+                    {networkName(r.network, isAr())}
                   </td>
-                  <td style={{ padding: '8px 4px', textAlign: 'right' }}>{r.posts}</td>
-                  <td style={{ padding: '8px 4px', textAlign: 'right' }}>{r.reach}</td>
-                  <td style={{ padding: '8px 4px', textAlign: 'right', fontWeight: 600 }}>{r.er}%</td>
-                  <td style={{ padding: '8px 4px', textAlign: 'right' }} className="muted">
+                  <td style={{ padding: '8px 4px', textAlign: 'end' }}>{r.posts}</td>
+                  <td style={{ padding: '8px 4px', textAlign: 'end' }}>{r.reach}</td>
+                  <td style={{ padding: '8px 4px', textAlign: 'end', fontWeight: 600 }}>{r.er}%</td>
+                  <td style={{ padding: '8px 4px', textAlign: 'end' }} className="muted">
                     {r.was}%
                   </td>
                 </tr>
@@ -153,16 +150,16 @@ export default function Reports() {
           </table>
         </div>
         <div className="panel">
-          <h2>Quality record</h2>
-          <p className="small">Every rejection and every fix is logged, so the pilot shows what the human check caught.</p>
+          <h2>{t('reports.quality')}</h2>
+          <p className="small">{t('reports.qualitySub')}</p>
           <div className="grid cols-2">
             <div className="stat">
               <b>{caught}</b>
-              <span className="was">posts sent back by the approver</span>
+              <span className="was">{t('reports.sentBack')}</span>
             </div>
             <div className="stat">
               <b>{state.rules.filter((r) => r.enforced).length}</b>
-              <span className="was">brand rules enforced on every post</span>
+              <span className="was">{t('reports.rulesEnforced')}</span>
             </div>
           </div>
         </div>

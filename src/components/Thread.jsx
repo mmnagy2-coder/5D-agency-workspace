@@ -1,16 +1,12 @@
 import { useState } from 'react'
 import { people } from '../config/agency.js'
+import { inputDir, isolateTags, L, t } from '../i18n/index.js'
 import { Avatar, fmtDate, personName } from './ui.jsx'
 
-export const TICKET_STATUS = {
-  new: ['New', 'warn'],
-  'in-progress': ['In progress', 'agency'],
-  delivered: ['Delivered', 'ok'],
-}
+export const TICKET_STATUS = { new: 'warn', 'in-progress': 'agency', delivered: 'ok' }
 
 export function TicketTag({ status }) {
-  const [label, cls] = TICKET_STATUS[status] || [status, '']
-  return <span className={`tag ${cls}`}>{label}</span>
+  return <span className={`tag ${TICKET_STATUS[status] || ''}`}>{t(`ticket.${status}`)}</span>
 }
 
 export function Thread({ ticket, me, onSend }) {
@@ -23,9 +19,11 @@ export function Thread({ ticket, me, onSend }) {
             <Avatar id={m.by} />
             <div className="bubble">
               <div className="tiny muted">
-                {personName(m.by)}, {fmtDate(m.at)}
+                {personName(m.by)}
+                {t('comma')}
+                {fmtDate(m.at)}
               </div>
-              <div>{m.text}</div>
+              <div dir="auto">{isolateTags(L(m, 'text'))}</div>
             </div>
           </div>
         ))}
@@ -34,7 +32,8 @@ export function Thread({ ticket, me, onSend }) {
         <input
           type="text"
           value={text}
-          placeholder="Write a reply"
+          placeholder={t('thread.placeholder')}
+          dir={inputDir(text)}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === 'Enter' && text.trim()) {
@@ -42,7 +41,7 @@ export function Thread({ ticket, me, onSend }) {
               setText('')
             }
           }}
-          aria-label="Reply"
+          aria-label={t('thread.reply')}
         />
         <button
           className="btn"
@@ -52,7 +51,7 @@ export function Thread({ ticket, me, onSend }) {
             setText('')
           }}
         >
-          Send
+          {t('thread.send')}
         </button>
       </div>
     </div>

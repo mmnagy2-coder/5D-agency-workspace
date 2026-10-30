@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import { agency, people } from '../config/agency.js'
 import { Thread, TicketTag } from '../components/Thread.jsx'
 import { fmtDate } from '../components/ui.jsx'
+import { hasArabic, inputDir, isolateTags, L, t } from '../i18n/index.js'
 import { uid } from '../lib/simulate.js'
 import { ROLE_INFO, useStore } from '../store/store.jsx'
 
@@ -12,13 +12,14 @@ export default function Help() {
   const [title, setTitle] = useState('')
   const [detail, setDetail] = useState('')
   const [openId, setOpenId] = useState(state.tickets[0]?.id)
-  const open = state.tickets.find((t) => t.id === openId)
+  const open = state.tickets.find((x) => x.id === openId)
 
   const raise = () => {
     const ticket = {
       id: uid('tk'),
       kind,
       title: title.trim(),
+      titleAr: hasArabic(title) ? title.trim() : undefined,
       detail: detail.trim(),
       status: 'new',
       from: me,
@@ -26,8 +27,8 @@ export default function Help() {
       messages: [{ by: me, at: new Date().toISOString(), text: detail.trim() || title.trim() }],
     }
     dispatch({ type: 'ticket/add', ticket })
-    dispatch({ type: 'notify', note: { to: 'agency', text: `${people[me].name.split(' ')[0]} ${kind === 'issue' ? 'reported a problem' : 'asked for something new'}: ${ticket.title}`, link: 'desk' } })
-    toast(`Sent to ${agency.name}. ${agency.responseTime}.`, 'agency')
+    dispatch({ type: 'notify', note: { to: 'agency', key: kind === 'issue' ? 'n.newIssue' : 'n.newRequest', vars: { who: me, title: ticket.title, titleAr: ticket.titleAr }, link: 'desk' } })
+    toast(`${t('create.agency.sent')} ${t('agency.responseTime')}`, 'agency')
     setTitle('')
     setDetail('')
     setOpenId(ticket.id)
@@ -35,43 +36,45 @@ export default function Help() {
 
   return (
     <div className="page">
-      <h1>Ask {agency.name}</h1>
+      <h1>{t('nav.help')}</h1>
       <p className="lede">
-        For anything the studio cannot make on its own, or anything that is not working. {agency.name} replies here, and what they make goes straight into your library or templates. {agency.responseTime}.
+        {t('help.lede')} {t('agency.responseTime')}
       </p>
       <div className="split-main" style={{ gridTemplateColumns: '380px minmax(0, 1fr)' }}>
         <div className="stack">
           <div className="panel stack">
             <div className="row">
               <button className={`chip ${kind === 'request' ? 'on' : ''}`} onClick={() => setKind('request')}>
-                Something new
+                {t('help.new')}
               </button>
               <button className={`chip ${kind === 'issue' ? 'on' : ''}`} onClick={() => setKind('issue')}>
-                Something is not working
+                {t('help.broken')}
               </button>
             </div>
             <label className="field">
-              {kind === 'issue' ? 'What is wrong?' : 'What do you need?'}
-              <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder={kind === 'issue' ? 'The TikTok format cuts off the logo' : 'A Pinterest template for gift boxes'} />
+              {t(kind === 'issue' ? 'help.whatWrong' : 'help.whatNeed')}
+              <input type="text" value={title} dir={inputDir(title)} onChange={(e) => setTitle(e.target.value)} placeholder={t(kind === 'issue' ? 'help.issueExample' : 'help.requestExample')} />
             </label>
             <label className="field">
-              Details
-              <textarea value={detail} onChange={(e) => setDetail(e.target.value)} placeholder="When you need it, which markets, anything to avoid" />
+              {t('help.details')}
+              <textarea value={detail} dir={inputDir(detail)} onChange={(e) => setDetail(e.target.value)} placeholder={t('help.detailsExample')} />
             </label>
             <button className="btn agency" disabled={!title.trim()} onClick={raise}>
-              Send to {agency.name}
+              {t('create.agency.send')}
             </button>
           </div>
           <div className="paper list" style={{ padding: '4px 12px' }}>
-            {state.tickets.map((t) => (
-              <div key={t.id} className="list-row click" onClick={() => setOpenId(t.id)} style={t.id === openId ? { background: 'var(--panel)' } : null}>
+            {state.tickets.map((x) => (
+              <div key={x.id} className="list-row click" onClick={() => setOpenId(x.id)} style={x.id === openId ? { background: 'var(--panel)' } : null}>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 600 }}>{t.title}</div>
+                  <div style={{ fontWeight: 600 }}>{L(x, 'title')}</div>
                   <div className="tiny muted">
-                    {t.kind === 'issue' ? 'Problem' : 'Request'}, {fmtDate(t.createdAt, { day: 'numeric', month: 'short' })}
+                    {t(x.kind === 'issue' ? 'ticket.issue' : 'ticket.request')}
+                    {t('comma')}
+                    {fmtDate(x.createdAt, { day: 'numeric', month: 'short' })}
                   </div>
                 </div>
-                <TicketTag status={t.status} />
+                <TicketTag status={x.status} />
               </div>
             ))}
           </div>
@@ -79,21 +82,27 @@ export default function Help() {
         {open ? (
           <div className="panel">
             <div className="row between" style={{ marginBottom: 8 }}>
-              <h2 style={{ margin: 0 }}>{open.title}</h2>
+              <h2 style={{ margin: 0 }} dir="auto">
+                {L(open, 'title')}
+              </h2>
               <TicketTag status={open.status} />
             </div>
-            {open.detail && <p className="muted small">{open.detail}</p>}
+            {open.detail && (
+              <p className="muted small" dir="auto">
+                {isolateTags(L(open, 'detail'))}
+              </p>
+            )}
             <Thread
               ticket={open}
               me={me}
               onSend={(message) => {
                 dispatch({ type: 'ticket/message', id: open.id, message })
-                dispatch({ type: 'notify', note: { to: 'agency', text: `New reply on ${open.title}`, link: 'desk' } })
+                dispatch({ type: 'notify', note: { to: 'agency', key: 'n.reply', vars: { who: me, title: open.title, titleAr: open.titleAr }, link: 'desk' } })
               }}
             />
           </div>
         ) : (
-          <div className="empty">Pick a request to see the conversation.</div>
+          <div className="empty">{t('help.pick')}</div>
         )}
       </div>
     </div>
